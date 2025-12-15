@@ -1,4 +1,3 @@
-
 import gymnasium as gym
 import numpy as np
 import matplotlib.pyplot as plt
@@ -8,9 +7,7 @@ import random
 def print_success_rate(rewards_per_episode):
     """計算並印出成功率"""
     total_episodes = len(rewards_per_episode)
-    # 注意：因為你有修改 reward (變成 -1 或 -0.01)，
-    # 這裡原本的 np.sum 已經不能直接代表成功次數了。
-    # 我們改用 "有多少回合大於 0" 來判斷是否成功到達終點 (終點原本是 +1)
+    # 計算成功次數 (Reward = 1 代表成功到達終點)
     success_count = np.sum(rewards_per_episode == 1) 
     
     success_rate = (success_count / total_episodes) * 100
@@ -18,13 +15,16 @@ def print_success_rate(rewards_per_episode):
     return success_rate
 
 def run(episodes, is_training=True, render=False):
-
+    
+    # 初始化環境：8x8 地圖，is_slippery=True (會滑，增加難度)
     env = gym.make('FrozenLake-v1', map_name="8x8", is_slippery=True, render_mode='human' if render else None)
 
     # 1. 初始化 Q-Table
     if(is_training):
+        # 訓練模式：建立一個全新的 Q-Table (全 0)
         q = np.zeros((env.observation_space.n, env.action_space.n)) 
     else:
+        # 測試模式：讀取已訓練好的 .pkl 檔案
         try:
             f = open('frozen_lake8x8.pkl', 'rb')
             q = pickle.load(f)
@@ -34,44 +34,45 @@ def run(episodes, is_training=True, render=False):
             return
 
     # 2. 超參數設定
-    learning_rate_a = 0.085 # 修正：降低學習率以適應滑動環境
-    discount_factor_g = 0.99 # 修正：提高遠見，因為 8x8 路徑很長
+    learning_rate_a = 0.085 # 學習率 (Alpha)：更新 Q 值的步伐大小
+    discount_factor_g = 0.99 # 折扣因子 (Gamma)：重視未來獎勵的程度
     
-    epsilon = 1 
+    epsilon = 1 # 探索率：初始為 100% 隨機探索
     
-    # 修正：確保變數在任何模式下都有定義，避免報錯
-    # 衰減率邏輯優化：我們希望他在訓練的前半段(例如前 10000 回合)都在探索
-    # 數值大約在 0.0001 上下才是合理的
+    # 衰減率：隨著回合數增加，減少隨機探索的機率
+    # 這裡設定讓前 90% 的回合都有機會探索
     epsilon_decay_rate = 1 / (episodes * 0.9) 
-    min_exploration_rate = 0.01
+    min_exploration_rate = 0.01 # 最小探索率保底
 
     rng = np.random.default_rng() 
-    rewards_per_episode = np.zeros(episodes)
+    rewards_per_episode = np.zeros(episodes) # 記錄每回合結果
 
     # 3. 訓練/測試迴圈
     for i in range(episodes):
-        state = env.reset()[0] 
-        terminated = False 
-        truncated = False 
+        state = env.reset()[0] # 重置環境
+        terminated = False # 是否到達終點/掉洞
+        truncated = False # 是否超時
 
         while(not terminated and not truncated):
-            # 訓練模式才需要探索
+            # 訓練模式才需要探索 (Epsilon-Greedy 策略)
             if is_training and rng.random() < epsilon:
-                action = env.action_space.sample() 
+                action = env.action_space.sample() # 隨機探索
             else:
-                action = np.argmax(q[state,:])
+                action = np.argmax(q[state,:]) # 根據 Q 表選擇最佳動作
 
             new_state, reward, terminated, truncated, _ = env.step(action)
 
             # --- Reward Shaping (獎勵塑形) ---
+            # 修改原生獎勵機制以加速收斂
             if terminated and reward == 0: 
-                reward = -1  # 掉洞懲罰
+                reward = -1  # 懲罰：掉進洞裡
             elif not terminated:
-                reward = -0.01 # 步數懲罰 (鼓勵走快點)
+                reward = -0.01 # 懲罰：每走一步扣分 (鼓勵走捷徑)
             elif terminated and reward == 1:
-                reward = 1   # 到達終點 (保持原本獎勵)
+                reward = 1   # 獎勵：到達終點
 
-            # 更新 Q-Table
+            # Q-Table 
+            # 公式：Q_new = Q_old + alpha * (Reward + gamma * max(Q_next) - Q_old)
             if is_training:
                 q[state,action] = q[state,action] + learning_rate_a * (
                     reward + discount_factor_g * np.max(q[new_state,:]) - q[state,action]
@@ -79,26 +80,26 @@ def run(episodes, is_training=True, render=False):
 
             state = new_state
 
-        # Epsilon 衰減 (每一回合結束後做一次即可，不用在 while 裡面做)
+        # Epsilon 衰減 (每回合結束後減少探索率)
         if is_training:
             epsilon = max(epsilon - epsilon_decay_rate, min_exploration_rate)
 
-        # 記錄成功 (這裡我們只記錄真的到達終點的情況)
+        # 記錄成功 (這裡只記錄是否有拿到原始環境的 1 分)
         if reward == 1:
             rewards_per_episode[i] = 1
 
     env.close()
 
     # 4. 繪圖與結算
-    # 只有訓練時才需要畫圖
     if is_training:
         sum_rewards = np.zeros(episodes)
         for t in range(episodes):
+            # 計算滑動平均 (看最近 100 回合的表現)
             sum_rewards[t] = np.sum(rewards_per_episode[max(0, t-100):(t+1)])
         plt.plot(sum_rewards)
         plt.title(f"Training Progress (Decay: {epsilon_decay_rate:.5f})")
         plt.savefig('frozen_lake8x8.png')
-        plt.close() # 記得關閉圖表，不然在迴圈中會記憶體溢出
+        plt.close() 
         
         # 儲存模型
         f = open("frozen_lake8x8.pkl","wb")
@@ -107,7 +108,7 @@ def run(episodes, is_training=True, render=False):
         print(f"訓練完成。Epsilon 衰減率: {epsilon_decay_rate:.5f}")
 
     else:
-        # 測試模式只印成功率
+        # 印成功率
         print(f"測試結果 (Epsilon Decay 用不到):")
         print_success_rate(rewards_per_episode)
 
