@@ -30,6 +30,9 @@ pip install -e .
 # 5. Install additional dependencies
 pip install "gymnasium[classic_control]"
 pip install matplotlib
+
+#6. Install moviepy for video
+python -m pip install moviepy
 ```
 
 ## ✅ Verification
@@ -59,8 +62,15 @@ If your output matches the above (or is similar), your environment is correctly 
 
 ## 🚀 Running the Project
 
+### **Part 2: Frozen Lake**
+Run the Frozen Lake environment:
 
-### **Part 1: Mountain Car**
+```bash
+python frozen_lake.py
+```
+
+
+### **Part 3: Mountain Car**
 Standard Command Format
 You can view the full list of arguments by running:
 
@@ -113,13 +123,6 @@ Compare all agents (Rookie, Pro, Q-Learning, SARSA) in the same environment.
 python mountain_car.py --compare --vehicle Standard --terrain Mud --episodes 100
 ```
 
-### **Part 2: Frozen Lake**
-Run the Frozen Lake environment:
-
-```bash
-python frozen_lake.py
-```
-
 
 **Tip: If you’re on Windows, replace**
 
@@ -135,3 +138,14 @@ with
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 .venv\Scripts\activate
 ```
+
+
+
+## Contribution List
+
+- 劉庭甄：Part2, Part3, Reflection Report, Presentation Slides, github environment, README.md , Report
+
+- 賴亭羽：Part2, Part3, Reflection Report, Presentation Slides, UML diagram , Report
+
+- 謝昀恩：Part2, Part3, Presentation Slides , Report
+
